@@ -1,0 +1,36 @@
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withReader('UTF-8') { reader ->
+        localProperties.load(reader)
+    }
+}
+
+default_compile_sdk = localProperties.getProperty('flutter.compileSdkVersion')
+if (default_compile_sdk == null) {
+    default_compile_sdk = 33
+}
+
+default_min_sdk = localProperties.getProperty('flutter.minSdkVersion')
+if (default_min_sdk == null) {
+    default_min_sdk = 21
+}
+
+default_target_sdk = localProperties.getProperty('flutter.targetSdkVersion')
+if (default_target_sdk == null) {
+    default_target_sdk = 33
+}
+
+android {
+    compileSdkVersion default_compile_sdk.toInteger()
+
+    defaultConfig {
+        minSdkVersion default_min_sdk.toInteger()
+        targetSdkVersion default_target_sdk.toInteger()
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
