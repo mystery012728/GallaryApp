@@ -10,18 +10,29 @@ import 'image_detail_page.dart';
 import 'album_detail_page.dart';
 import 'bin_page.dart';
 import 'vault_page.dart';
+import 'videos_page.dart';
 
 // Custom AppBar that implements PreferredSizeWidget
 class AnimatedAppBarWithTabs extends StatelessWidget implements PreferredSizeWidget {
   final Animation<double> animation;
   final TabController tabController;
   final String title;
+  final bool isSelectionMode;
+  final int selectedCount;
+  final VoidCallback? onShare;
+  final VoidCallback? onMoreOptions;
+  final VoidCallback? onClearSelection;
 
   const AnimatedAppBarWithTabs({
     Key? key,
     required this.animation,
     required this.tabController,
     required this.title,
+    this.isSelectionMode = false,
+    this.selectedCount = 0,
+    this.onShare,
+    this.onMoreOptions,
+    this.onClearSelection,
   }) : super(key: key);
 
   @override
@@ -38,7 +49,7 @@ class AnimatedAppBarWithTabs extends StatelessWidget implements PreferredSizeWid
               elevation: 0,
               shadowColor: Colors.black.withOpacity(0.1),
               title: Text(
-                title,
+                isSelectionMode ? '$selectedCount selected' : title,
                 style: GoogleFonts.poppins(
                   fontSize: 28.sp,
                   fontWeight: FontWeight.w800,
@@ -46,6 +57,20 @@ class AnimatedAppBarWithTabs extends StatelessWidget implements PreferredSizeWid
                   letterSpacing: -1,
                 ),
               ),
+              actions: isSelectionMode ? [
+                IconButton(
+                  icon: const Icon(Icons.share, color: Colors.black87),
+                  onPressed: onShare,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.more_vert, color: Colors.black87),
+                  onPressed: onMoreOptions,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.black87),
+                  onPressed: onClearSelection,
+                ),
+              ] : null,
               bottom: TabBar(
                 controller: tabController,
                 labelColor: Colors.black87,
@@ -93,6 +118,7 @@ class _HomePageState extends State<HomePage>
   List<AssetPathEntity> _recentAlbums = [];
   List<AssetPathEntity> _otherAlbums = [];
   bool _isLoading = true;
+  bool _isDataLoaded = false;
   String? _error;
   Map<String, List<AssetEntity>> _groupedPhotos = {};
   final Map<String, Uint8List?> _thumbnailCache = {};
@@ -111,6 +137,10 @@ class _HomePageState extends State<HomePage>
   late Animation<double> _scaleAnimation;
 
   bool _isVaultOpening = false;
+
+  Set<String> _selectedPhotos = {};
+  bool _isSelectionMode = false;
+  bool _isSlideSelecting = false;
 
   @override
   void initState() {
@@ -165,7 +195,7 @@ class _HomePageState extends State<HomePage>
     _appBarController.reset();
     _appBarController.reverse();
 
-    _loadData();
+    _loadAllData();
   }
 
   @override
@@ -187,7 +217,9 @@ class _HomePageState extends State<HomePage>
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       );
-      _loadData();
+      if (!_isDataLoaded) {
+        _loadAllData();
+      }
     }
   }
 
@@ -235,20 +267,35 @@ class _HomePageState extends State<HomePage>
     });
   }
 
-  Future<void> _loadData() async {
-    if (_currentIndex == 0) {
-      await _loadCameraPhotos();
-    } else {
-      await _loadAlbums();
+  Future<void> _loadAllData() async {
+    if (_isDataLoaded) return;
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      // Load both photos and albums simultaneously
+      await Future.wait([
+        _loadCameraPhotos(),
+        _loadAlbums(),
+      ]);
+
+      setState(() {
+        _isDataLoaded = true;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Failed to load data: $e';
+        _isLoading = false;
+      });
     }
   }
 
   Future<void> _loadCameraPhotos() async {
     try {
-      setState(() {
-        _error = null;
-      });
-
       final cameraAlbum = await PhotoService.getCameraAlbum();
       List<AssetEntity> cameraPhotos = [];
 
@@ -259,6 +306,7 @@ class _HomePageState extends State<HomePage>
           end: totalCount,
         );
 
+        // Load thumbnails for all photos and videos
         for (var photo in cameraPhotos) {
           if (!_thumbnailCache.containsKey(photo.id)) {
             photo
@@ -275,16 +323,9 @@ class _HomePageState extends State<HomePage>
       }
 
       _groupPhotos(cameraPhotos);
-
-      setState(() {
-        _photos = cameraPhotos;
-        _isLoading = false;
-      });
+      _photos = cameraPhotos;
     } catch (e) {
-      setState(() {
-        _error = 'Failed to load camera photos: $e';
-        _isLoading = false;
-      });
+      debugPrint('Error loading camera photos: $e');
     }
   }
 
@@ -343,21 +384,11 @@ class _HomePageState extends State<HomePage>
         }
       }
 
-      if (mounted) {
-        setState(() {
-          _albums = validAlbums;
-          _recentAlbums = recentAlbums.take(2).toList(); // Show max 2 recent albums
-          _otherAlbums = otherAlbums;
-          _isLoading = false;
-        });
-      }
+      _albums = validAlbums;
+      _recentAlbums = recentAlbums.take(2).toList();
+      _otherAlbums = otherAlbums;
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = 'Failed to load albums: $e';
-          _isLoading = false;
-        });
-      }
+      debugPrint('Error loading albums: $e');
     }
   }
 
@@ -414,13 +445,14 @@ class _HomePageState extends State<HomePage>
         pageBuilder: (context, animation, secondaryAnimation) =>
             ImageDetailPage(
               photo: photo,
+              photoList: photoList ?? _photos,
               folderPath: 'Camera',
               currentIndex: index ??
                   photoList?.indexOf(photo) ??
                   _photos?.indexOf(photo) ??
                   0,
-              onPhotoDeleted: () {
-                _loadCameraPhotos();
+              onPhotoDeleted: (photoId) {
+                _refreshData();
               },
             ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
@@ -463,7 +495,7 @@ class _HomePageState extends State<HomePage>
     );
 
     if (result == true) {
-      _loadAlbums();
+      _refreshData();
     }
   }
 
@@ -488,8 +520,15 @@ class _HomePageState extends State<HomePage>
     );
 
     if (result == true) {
-      _loadAlbums();
+      _refreshData();
     }
+  }
+
+  Future<void> _refreshData() async {
+    setState(() {
+      _isDataLoaded = false;
+    });
+    await _loadAllData();
   }
 
   void _handleSwipe(DragEndDetails details) {
@@ -525,38 +564,179 @@ class _HomePageState extends State<HomePage>
     }
   }
 
-  void _slidePhotoToAlbum(AssetEntity photo) async {
-    if (_albums.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'No albums available',
-            style: GoogleFonts.inter(fontSize: 14.sp),
-          ),
-          backgroundColor: Colors.black87,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
-        ),
-      );
-      return;
-    }
+  void _startSelection(String photoId) {
+    setState(() {
+      _isSelectionMode = true;
+      _selectedPhotos.add(photoId);
+    });
+  }
 
+  void _togglePhotoSelection(String photoId) {
+    setState(() {
+      if (_selectedPhotos.contains(photoId)) {
+        _selectedPhotos.remove(photoId);
+        if (_selectedPhotos.isEmpty) {
+          _isSelectionMode = false;
+        }
+      } else {
+        _selectedPhotos.add(photoId);
+      }
+    });
+  }
+
+  void _handlePanUpdate(DragUpdateDetails details, String photoId) {
+    if (_isSelectionMode && !_selectedPhotos.contains(photoId)) {
+      setState(() {
+        _selectedPhotos.add(photoId);
+        _isSlideSelecting = true;
+      });
+    }
+  }
+
+  void _handlePanEnd(DragEndDetails details) {
+    setState(() {
+      _isSlideSelecting = false;
+    });
+  }
+
+  void _clearSelection() {
+    setState(() {
+      _selectedPhotos.clear();
+      _isSelectionMode = false;
+      _isSlideSelecting = false;
+    });
+  }
+
+  void _shareSelectedPhotos() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Sharing photos')),
+    );
+  }
+
+  void _showMoreOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40.w,
+              height: 4.h,
+              margin: EdgeInsets.symmetric(vertical: 12.h),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2.r),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Colors.red),
+              title: Text('Delete', style: GoogleFonts.inter(fontSize: 16.sp)),
+              onTap: () {
+                Navigator.pop(context);
+                _deleteSelectedPhotos();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.drive_file_move_outline),
+              title: Text('Move to', style: GoogleFonts.inter(fontSize: 16.sp)),
+              onTap: () {
+                Navigator.pop(context);
+                _moveSelectedPhotos();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.visibility_off_outlined),
+              title: Text('Hide', style: GoogleFonts.inter(fontSize: 16.sp)),
+              onTap: () {
+                Navigator.pop(context);
+                _hideSelectedPhotos();
+              },
+            ),
+            SizedBox(height: 20.h),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _deleteSelectedPhotos() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
+        title: Text('Move to Bin', style: GoogleFonts.poppins(fontSize: 20.sp, fontWeight: FontWeight.w600)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 60.w, height: 60.w,
+              decoration: BoxDecoration(color: Colors.red.withOpacity(0.1), shape: BoxShape.circle),
+              child: Icon(Icons.delete_outline, size: 30.sp, color: Colors.red),
+            ),
+            SizedBox(height: 16.h),
+            Text('Move ${_selectedPhotos.length} ${_selectedPhotos.length == 1 ? 'item' : 'items'} to bin?',
+                style: GoogleFonts.poppins(fontSize: 16.sp), textAlign: TextAlign.center),
+            SizedBox(height: 8.h),
+            Text('They will be automatically deleted after 30 days',
+                style: GoogleFonts.poppins(fontSize: 14.sp, color: Colors.grey), textAlign: TextAlign.center),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text('CANCEL', style: GoogleFonts.poppins(fontSize: 14.sp, fontWeight: FontWeight.w500)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red, foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text('MOVE TO BIN', style: GoogleFonts.poppins(fontSize: 14.sp, fontWeight: FontWeight.w500)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        for (String photoId in _selectedPhotos) {
+          final photo = _photos?.firstWhere((p) => p.id == photoId);
+          if (photo != null) {
+            await PhotoService.moveToTrash(photo);
+          }
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${_selectedPhotos.length} items moved to bin')),
+        );
+
+        _clearSelection();
+        _refreshData();
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error deleting items: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _moveSelectedPhotos() async {
     final selectedAlbum = await showModalBottomSheet<AssetPathEntity>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.6,
+        height: MediaQuery.of(context).size.height * 0.7,
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24.r)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 20,
-              offset: const Offset(0, -5),
-            ),
-          ],
         ),
         padding: EdgeInsets.all(20.w),
         child: Column(
@@ -564,8 +744,7 @@ class _HomePageState extends State<HomePage>
           children: [
             Center(
               child: Container(
-                width: 40.w,
-                height: 4.h,
+                width: 40.w, height: 4.h,
                 decoration: BoxDecoration(
                   color: Colors.grey.shade300,
                   borderRadius: BorderRadius.circular(2.r),
@@ -573,12 +752,16 @@ class _HomePageState extends State<HomePage>
               ),
             ),
             SizedBox(height: 20.h),
-            Text(
-              'Move to Album',
-              style: GoogleFonts.poppins(
-                fontSize: 24.sp,
-                fontWeight: FontWeight.w700,
-                color: Colors.black87,
+            Text('Move to Album', style: GoogleFonts.poppins(fontSize: 24.sp, fontWeight: FontWeight.w700)),
+            SizedBox(height: 16.h),
+            ElevatedButton.icon(
+              onPressed: () => _createNewFolder(),
+              icon: const Icon(Icons.create_new_folder),
+              label: const Text('Create New Folder'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+                minimumSize: Size(double.infinity, 48.h),
               ),
             ),
             SizedBox(height: 16.h),
@@ -587,47 +770,22 @@ class _HomePageState extends State<HomePage>
                 itemCount: _albums.length,
                 itemBuilder: (context, index) {
                   final album = _albums[index];
-                  return Container(
-                    margin: EdgeInsets.only(bottom: 12.h),
-                    child: ListTile(
-                      contentPadding: EdgeInsets.all(12.w),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12.r),
-                        side: BorderSide(color: Colors.grey.shade200),
+                  return ListTile(
+                    leading: Container(
+                      width: 50.w, height: 50.h,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(8.r),
                       ),
-                      leading: Container(
-                        width: 60.w,
-                        height: 60.h,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(12.r),
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12.r),
-                          child: _thumbnailCache['album_${album.id}'] != null
-                              ? Image.memory(
-                            _thumbnailCache['album_${album.id}']!,
-                            fit: BoxFit.cover,
-                          )
-                              : Icon(Icons.photo_album,
-                              color: Colors.grey.shade400, size: 24.sp),
-                        ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8.r),
+                        child: _thumbnailCache['album_${album.id}'] != null
+                            ? Image.memory(_thumbnailCache['album_${album.id}']!, fit: BoxFit.cover)
+                            : Icon(Icons.photo_album, color: Colors.grey.shade400),
                       ),
-                      title: Text(
-                        album.name,
-                        style: GoogleFonts.inter(
-                          fontSize: 16.sp,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      trailing: Icon(
-                        Icons.arrow_forward_ios,
-                        size: 16.sp,
-                        color: Colors.grey.shade400,
-                      ),
-                      onTap: () => Navigator.pop(context, album),
                     ),
+                    title: Text(album.name, style: GoogleFonts.inter(fontSize: 16.sp, fontWeight: FontWeight.w600)),
+                    onTap: () => Navigator.pop(context, album),
                   );
                 },
               ),
@@ -638,18 +796,78 @@ class _HomePageState extends State<HomePage>
     );
 
     if (selectedAlbum != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Photo moved to ${selectedAlbum.name}',
-            style: GoogleFonts.inter(fontSize: 14.sp),
-          ),
-          backgroundColor: Colors.green.shade600,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
-        ),
-      );
+      try {
+        for (String photoId in _selectedPhotos) {
+          final photo = _photos?.firstWhere((p) => p.id == photoId);
+          if (photo != null) {
+            await PhotoService.movePhotoToAlbum(photo, selectedAlbum);
+          }
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Photos moved to ${selectedAlbum.name}')),
+        );
+        _clearSelection();
+        _refreshData();
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error moving photos: $e')),
+        );
+      }
     }
+  }
+
+  void _createNewFolder() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        String folderName = '';
+        return AlertDialog(
+          title: const Text('Create New Folder'),
+          content: TextField(
+            onChanged: (value) => folderName = value,
+            decoration: const InputDecoration(
+              hintText: 'Enter folder name',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (folderName.isNotEmpty) {
+                  try {
+                    await PhotoService.createNewAlbum(folderName);
+                    Navigator.pop(context);
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Folder "$folderName" created')),
+                    );
+                    _clearSelection();
+                    _refreshData();
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error creating folder: $e')),
+                    );
+                  }
+                }
+              },
+              child: const Text('Create'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _hideSelectedPhotos() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${_selectedPhotos.length} items hidden')),
+    );
+    _clearSelection();
   }
 
   Widget _buildCameraPhotosView() {
@@ -667,6 +885,11 @@ class _HomePageState extends State<HomePage>
                 color: Colors.grey.shade700,
               ),
               textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 16.h),
+            ElevatedButton(
+              onPressed: _refreshData,
+              child: const Text('Retry'),
             ),
           ],
         ),
@@ -734,86 +957,121 @@ class _HomePageState extends State<HomePage>
                 padding: EdgeInsets.symmetric(horizontal: 8.w),
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 3,
-                  crossAxisSpacing: 6.w,
-                  mainAxisSpacing: 6.h,
+                  crossAxisSpacing: 1,
+                  mainAxisSpacing: 1,
+                  childAspectRatio: 1.0,
                 ),
                 itemCount: photosInGroup.length,
                 itemBuilder: (context, index) {
                   final photo = photosInGroup[index];
                   return GestureDetector(
-                    onTap: () => _openPhoto(photo,
-                        photoList: photosInGroup, index: index),
-                    onLongPress: () => _slidePhotoToAlbum(photo),
+                    onTap: () {
+                      if (_isSelectionMode) {
+                        _togglePhotoSelection(photo.id);
+                      } else {
+                        _openPhoto(photo, photoList: photosInGroup, index: index);
+                      }
+                    },
+                    onLongPress: () {
+                      if (!_isSelectionMode) {
+                        _startSelection(photo.id);
+                      }
+                    },
+                    onPanUpdate: (details) => _handlePanUpdate(details, photo.id),
+                    onPanEnd: _handlePanEnd,
                     child: Hero(
                       tag: 'photo_${photo.id}',
                       child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12.r),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 4,
-                              offset: const Offset(0, 2),
+                        color: Colors.white,
+                        child: Stack(
+                          children: [
+                            _thumbnailCache[photo.id] != null
+                                ? Image.memory(
+                              _thumbnailCache[photo.id]!,
+                              fit: BoxFit.cover,
+                              width: double.infinity,
+                              height: double.infinity,
+                            )
+                                : Container(
+                              color: Colors.grey.shade200,
+                              child: Center(
+                                child: Icon(
+                                  photo.type == AssetType.video ? Icons.videocam : Icons.photo,
+                                  color: Colors.grey.shade400,
+                                  size: 24.sp,
+                                ),
+                              ),
                             ),
-                          ],
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12.r),
-                          child: Stack(
-                            children: [
-                              _thumbnailCache[photo.id] != null
-                                  ? Image.memory(
-                                _thumbnailCache[photo.id]!,
-                                fit: BoxFit.cover,
-                                width: double.infinity,
-                                height: double.infinity,
-                              )
-                                  : Container(
-                                color: Colors.grey.shade200,
-                                child: Center(
-                                  child: Icon(
-                                    Icons.photo,
-                                    color: Colors.grey.shade400,
-                                    size: 24.sp,
+                            if (photo.type == AssetType.video)
+                              Positioned(
+                                bottom: 4.h,
+                                right: 4.w,
+                                child: Container(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 6.w,
+                                    vertical: 2.h,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withOpacity(0.7),
+                                    borderRadius: BorderRadius.circular(4.r),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.play_arrow,
+                                        color: Colors.white,
+                                        size: 12.sp,
+                                      ),
+                                      SizedBox(width: 2.w),
+                                      Text(
+                                        _formatDuration(photo.duration),
+                                        style: GoogleFonts.inter(
+                                          color: Colors.white,
+                                          fontSize: 10.sp,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
-                              if (photo.type == AssetType.video)
-                                Positioned(
-                                  bottom: 8.h,
-                                  right: 8.w,
-                                  child: Container(
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: 8.w,
-                                      vertical: 4.h,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.black.withOpacity(0.7),
-                                      borderRadius: BorderRadius.circular(6.r),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          Icons.play_arrow,
-                                          color: Colors.white,
-                                          size: 14.sp,
-                                        ),
-                                        SizedBox(width: 2.w),
-                                        Text(
-                                          _formatDuration(photo.duration),
-                                          style: GoogleFonts.inter(
-                                            color: Colors.white,
-                                            fontSize: 11.sp,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
+                            if (photo.type == AssetType.video)
+                              Center(
+                                child: Container(
+                                  width: 30.w,
+                                  height: 30.h,
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withOpacity(0.6),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    Icons.play_arrow,
+                                    color: Colors.white,
+                                    size: 18.sp,
                                   ),
                                 ),
-                            ],
-                          ),
+                              ),
+                            if (_selectedPhotos.contains(photo.id))
+                              Positioned(
+                                top: 4.h,
+                                right: 4.w,
+                                child: Container(
+                                  width: 20.w,
+                                  height: 20.h,
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: Colors.white, width: 2),
+                                  ),
+                                  child: Icon(
+                                    Icons.check,
+                                    color: Colors.white,
+                                    size: 12.sp,
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
                     ),
@@ -1061,7 +1319,7 @@ class _HomePageState extends State<HomePage>
             ),
             SizedBox(height: 8.h),
             ElevatedButton(
-              onPressed: _loadAlbums,
+              onPressed: _refreshData,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.black87,
                 foregroundColor: Colors.white,
@@ -1122,6 +1380,105 @@ class _HomePageState extends State<HomePage>
               ),
               SizedBox(height: 24.h),
             ],
+
+            // Videos Section
+            Padding(
+              padding: EdgeInsets.fromLTRB(16.w, 0, 16.w, 16.h),
+              child: Text(
+                'Media',
+                style: GoogleFonts.poppins(
+                  fontSize: 22.sp,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black87,
+                  letterSpacing: -0.5,
+                ),
+              ),
+            ),
+            Container(
+              margin: EdgeInsets.symmetric(horizontal: 16.w),
+              padding: EdgeInsets.all(20.w),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16.r),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.08),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16.r),
+                onTap: _openVideos,
+                child: Row(
+                  children: [
+                    Container(
+                      width: 60.w,
+                      height: 60.h,
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(12.r),
+                      ),
+                      child: Center(
+                        child: Icon(
+                          Icons.videocam,
+                          size: 28.sp,
+                          color: Colors.blue.shade400,
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: 16.w),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Videos',
+                            style: GoogleFonts.inter(
+                              fontSize: 18.sp,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          SizedBox(height: 4.h),
+                          FutureBuilder<List<AssetEntity>>(
+                            future: PhotoService.getAllVideos(),
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState == ConnectionState.waiting) {
+                                return Text(
+                                  'Loading...',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14.sp,
+                                    color: Colors.grey.shade600,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                );
+                              }
+                              final count = snapshot.data?.length ?? 0;
+                              return Text(
+                                count > 0 ? '$count videos' : 'No videos found',
+                                style: GoogleFonts.inter(
+                                  fontSize: 14.sp,
+                                  color: Colors.grey.shade600,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      Icons.arrow_forward_ios,
+                      size: 16.sp,
+                      color: Colors.grey.shade400,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            SizedBox(height: 24.h),
 
             // Other Albums Section
             if (_otherAlbums.isNotEmpty) ...[
@@ -1189,6 +1546,31 @@ class _HomePageState extends State<HomePage>
     );
   }
 
+  void _openVideos() async {
+    final result = await Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => const VideosPage(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(1, 0),
+              end: Offset.zero,
+            ).animate(CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+            )),
+            child: child,
+          );
+        },
+      ),
+    );
+
+    if (result == true) {
+      _refreshData();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1197,6 +1579,11 @@ class _HomePageState extends State<HomePage>
         animation: _appBarAnimation,
         tabController: _tabController,
         title: 'Gallery',
+        isSelectionMode: _isSelectionMode,
+        selectedCount: _selectedPhotos.length,
+        onShare: _shareSelectedPhotos,
+        onMoreOptions: _showMoreOptions,
+        onClearSelection: _clearSelection,
       ),
       body: Stack(
         children: [
@@ -1209,7 +1596,6 @@ class _HomePageState extends State<HomePage>
                   _currentIndex = index;
                   _tabController.animateTo(index);
                 });
-                _loadData();
               },
               children: [
                 _isLoading ?

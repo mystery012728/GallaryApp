@@ -521,103 +521,103 @@ class _BinPageState extends State<BinPage> {
         appBar: AppBar(
           title: _isSelectionMode
               ? Text(
-                  '${_selectedPhotos.length} selected',
-                  style: GoogleFonts.poppins(
-                    fontSize: 20.sp,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF6C63FF),
-                  ),
-                )
+            '${_selectedPhotos.length} selected',
+            style: GoogleFonts.poppins(
+              fontSize: 20.sp,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF6C63FF),
+            ),
+          )
               : Text(
-                  'Bin',
-                  style: GoogleFonts.poppins(
-                    fontSize: 22.sp,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+            'Bin',
+            style: GoogleFonts.poppins(
+              fontSize: 22.sp,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           leading: _isSelectionMode
               ? IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: _toggleSelectionMode,
-                )
+            icon: const Icon(Icons.close),
+            onPressed: _toggleSelectionMode,
+          )
               : IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: () => Navigator.pop(context, _hasChanges),
-                ),
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Navigator.pop(context, _hasChanges),
+          ),
           actions: _isSelectionMode
               ? [
-                  IconButton(
-                    icon: const Icon(Icons.restore),
-                    onPressed: _restoreSelectedPhotos,
-                    tooltip: 'Restore',
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.delete_forever),
-                    onPressed: _deleteSelectedPhotos,
-                    tooltip: 'Delete Forever',
-                  ),
-                ]
+            IconButton(
+              icon: const Icon(Icons.restore),
+              onPressed: _restoreSelectedPhotos,
+              tooltip: 'Restore',
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_forever),
+              onPressed: _deleteSelectedPhotos,
+              tooltip: 'Delete Forever',
+            ),
+          ]
               : [
-                  if (_binPhotos.isNotEmpty) ...[
-                    IconButton(
-                      icon:
-                          Icon(_isGridView ? Icons.view_list : Icons.grid_view),
-                      onPressed: () {
-                        setState(() {
-                          _isGridView = !_isGridView;
-                        });
-                      },
-                      tooltip: _isGridView ? 'List View' : 'Grid View',
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete_forever),
-                      onPressed: _emptyBin,
-                      tooltip: 'Empty Bin',
-                    ),
-                    PopupMenuButton<String>(
-                      icon: const Icon(Icons.more_vert),
-                      onSelected: (value) {
-                        if (value == 'select') {
-                          _toggleSelectionMode();
-                        }
-                      },
-                      itemBuilder: (context) => [
-                        PopupMenuItem(
-                          value: 'select',
-                          child: Row(
-                            children: [
-                              const Icon(Icons.check_circle_outline),
-                              SizedBox(width: 8.w),
-                              const Text('Select'),
-                            ],
-                          ),
-                        ),
+            if (_binPhotos.isNotEmpty) ...[
+              IconButton(
+                icon:
+                Icon(_isGridView ? Icons.view_list : Icons.grid_view),
+                onPressed: () {
+                  setState(() {
+                    _isGridView = !_isGridView;
+                  });
+                },
+                tooltip: _isGridView ? 'List View' : 'Grid View',
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_forever),
+                onPressed: _emptyBin,
+                tooltip: 'Empty Bin',
+              ),
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert),
+                onSelected: (value) {
+                  if (value == 'select') {
+                    _toggleSelectionMode();
+                  }
+                },
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: 'select',
+                    child: Row(
+                      children: [
+                        const Icon(Icons.check_circle_outline),
+                        SizedBox(width: 8.w),
+                        const Text('Select'),
                       ],
                     ),
-                  ],
+                  ),
                 ],
+              ),
+            ],
+          ],
         ),
         body: _isLoading
             ? SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 8.h),
-                      child: Container(
-                        width: 100.w,
-                        height: 24.h,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(4.r),
-                        ),
-                      ),
-                    ),
-                    _isGridView ? _buildShimmerGrid() : _buildShimmerList(),
-                  ],
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 8.h),
+                child: Container(
+                  width: 100.w,
+                  height: 24.h,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(4.r),
+                  ),
                 ),
-              )
+              ),
+              _isGridView ? _buildShimmerGrid() : _buildShimmerList(),
+            ],
+          ),
+        )
             : _buildBody(),
       ),
     );
@@ -629,7 +629,7 @@ class _BinPageState extends State<BinPage> {
         icon: Icons.delete_outline,
         title: 'Bin is Empty',
         message:
-            'Photos you delete will appear here for 30 days before being permanently removed.',
+        'Photos you delete will appear here for 30 days before being permanently removed.',
       );
     }
 
@@ -683,11 +683,11 @@ class _BinPageState extends State<BinPage> {
                     onLongPress: _isSelectionMode
                         ? null
                         : () {
-                            setState(() {
-                              _isSelectionMode = true;
-                              _selectedPhotos.add(photo);
-                            });
-                          },
+                      setState(() {
+                        _isSelectionMode = true;
+                        _selectedPhotos.add(photo);
+                      });
+                    },
                     child: Hero(
                       tag: 'bin_photo_${photo['id']}',
                       child: Container(
@@ -696,7 +696,7 @@ class _BinPageState extends State<BinPage> {
                           borderRadius: BorderRadius.circular(8.r),
                           border: _selectedPhotos.contains(photo)
                               ? Border.all(
-                                  color: const Color(0xFF6C63FF), width: 3.w)
+                              color: const Color(0xFF6C63FF), width: 3.w)
                               : null,
                         ),
                         child: Stack(
@@ -704,22 +704,7 @@ class _BinPageState extends State<BinPage> {
                           children: [
                             ClipRRect(
                               borderRadius: BorderRadius.circular(8.r),
-                              child: Image.file(
-                                File(photo['path']),
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Container(
-                                    color: Colors.grey.withOpacity(0.2),
-                                    child: Center(
-                                      child: Icon(
-                                        Icons.error_outline,
-                                        color: Colors.red,
-                                        size: 24.sp,
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
+                              child: _buildBinPhotoThumbnail(photo),
                             ),
                             if (_selectedPhotos.contains(photo))
                               Positioned(
@@ -823,22 +808,7 @@ class _BinPageState extends State<BinPage> {
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8.r),
-                    child: Image.file(
-                      File(photo['path']),
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          color: Colors.grey.withOpacity(0.2),
-                          child: Center(
-                            child: Icon(
-                              Icons.error_outline,
-                              color: Colors.red,
-                              size: 24.sp,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
+                    child: _buildBinPhotoThumbnail(photo),
                   ),
 
                   // Selection indicator
@@ -902,6 +872,93 @@ class _BinPageState extends State<BinPage> {
                 ],
               ),
             ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildBinPhotoThumbnail(Map<String, dynamic> photo) {
+    // First try to load from bin directory
+    final appDir = Directory.systemTemp; // Use temp for demo, replace with proper app dir
+    final fileName = photo['path'].split('/').last;
+    final binFilePath = '${appDir.path}/bin/$fileName';
+    final binFile = File(binFilePath);
+
+    return FutureBuilder<bool>(
+      future: binFile.exists(),
+      builder: (context, snapshot) {
+        if (snapshot.data == true) {
+          return Image.file(
+            binFile,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return _buildThumbnailFallback(photo);
+            },
+          );
+        }
+        return _buildThumbnailFallback(photo);
+      },
+    );
+  }
+
+  Widget _buildThumbnailFallback(Map<String, dynamic> photo) {
+    // Try to load original photo as fallback
+    final originalFile = File(photo['path']);
+
+    return FutureBuilder<bool>(
+      future: originalFile.exists(),
+      builder: (context, snapshot) {
+        if (snapshot.data == true) {
+          return Image.file(
+            originalFile,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return Container(
+                color: Colors.grey.shade300,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      photo['type'] == 'video' ? Icons.videocam : Icons.photo,
+                      color: Colors.grey.shade600,
+                      size: 24.sp,
+                    ),
+                    SizedBox(height: 4.h),
+                    Text(
+                      photo['type'] == 'video' ? 'Video' : 'Photo',
+                      style: GoogleFonts.inter(
+                        fontSize: 10.sp,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        }
+
+        // Show placeholder with proper icon
+        return Container(
+          color: Colors.grey.shade300,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                photo['type'] == 'video' ? Icons.videocam : Icons.photo,
+                color: Colors.grey.shade600,
+                size: 24.sp,
+              ),
+              SizedBox(height: 4.h),
+              Text(
+                photo['type'] == 'video' ? 'Video' : 'Photo',
+                style: GoogleFonts.inter(
+                  fontSize: 10.sp,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ],
           ),
         );
       },
@@ -999,7 +1056,7 @@ class _BinPageState extends State<BinPage> {
                         borderRadius: BorderRadius.circular(8.r),
                         border: _selectedPhotos.contains(photo)
                             ? Border.all(
-                                color: const Color(0xFF6C63FF), width: 2.w)
+                            color: const Color(0xFF6C63FF), width: 2.w)
                             : null,
                       ),
                       child: ClipRRect(
