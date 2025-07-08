@@ -10,7 +10,6 @@ import 'image_detail_page.dart';
 import 'album_detail_page.dart';
 import 'bin_page.dart';
 import 'vault_page.dart';
-import 'videos_page.dart';
 
 // Custom AppBar that implements PreferredSizeWidget
 class AnimatedAppBarWithTabs extends StatelessWidget implements PreferredSizeWidget {
@@ -1380,104 +1379,6 @@ class _HomePageState extends State<HomePage>
               ),
               SizedBox(height: 24.h),
             ],
-
-            // Videos Section
-            Padding(
-              padding: EdgeInsets.fromLTRB(16.w, 0, 16.w, 16.h),
-              child: Text(
-                'Media',
-                style: GoogleFonts.poppins(
-                  fontSize: 22.sp,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.black87,
-                  letterSpacing: -0.5,
-                ),
-              ),
-            ),
-            Container(
-              margin: EdgeInsets.symmetric(horizontal: 16.w),
-              padding: EdgeInsets.all(20.w),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16.r),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(16.r),
-                onTap: _openVideos,
-                child: Row(
-                  children: [
-                    Container(
-                      width: 60.w,
-                      height: 60.h,
-                      decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
-                        borderRadius: BorderRadius.circular(12.r),
-                      ),
-                      child: Center(
-                        child: Icon(
-                          Icons.videocam,
-                          size: 28.sp,
-                          color: Colors.blue.shade400,
-                        ),
-                      ),
-                    ),
-                    SizedBox(width: 16.w),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Videos',
-                            style: GoogleFonts.inter(
-                              fontSize: 18.sp,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black87,
-                            ),
-                          ),
-                          SizedBox(height: 4.h),
-                          FutureBuilder<List<AssetEntity>>(
-                            future: PhotoService.getAllVideos(),
-                            builder: (context, snapshot) {
-                              if (snapshot.connectionState == ConnectionState.waiting) {
-                                return Text(
-                                  'Loading...',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 14.sp,
-                                    color: Colors.grey.shade600,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                );
-                              }
-                              final count = snapshot.data?.length ?? 0;
-                              return Text(
-                                count > 0 ? '$count videos' : 'No videos found',
-                                style: GoogleFonts.inter(
-                                  fontSize: 14.sp,
-                                  color: Colors.grey.shade600,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                    Icon(
-                      Icons.arrow_forward_ios,
-                      size: 16.sp,
-                      color: Colors.grey.shade400,
-                    ),
-                  ],
-                ),
-              ),
-            ),
             SizedBox(height: 24.h),
 
             // Other Albums Section
@@ -1544,31 +1445,6 @@ class _HomePageState extends State<HomePage>
         ),
       ),
     );
-  }
-
-  void _openVideos() async {
-    final result = await Navigator.push(
-      context,
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) => const VideosPage(),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(1, 0),
-              end: Offset.zero,
-            ).animate(CurvedAnimation(
-              parent: animation,
-              curve: Curves.easeOutCubic,
-            )),
-            child: child,
-          );
-        },
-      ),
-    );
-
-    if (result == true) {
-      _refreshData();
-    }
   }
 
   @override
